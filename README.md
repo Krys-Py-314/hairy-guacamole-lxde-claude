@@ -1,4 +1,4 @@
-# Claude-lxde-inst.sh
+# inst-guacamole-lxde-claude.sh
 
 A single script that turns a stock **Raspberry Pi OS Lite 64-bit** install
 (Raspberry Pi 5, 2GB RAM) into a minimal **standard LXDE-pi desktop** on X11
@@ -14,18 +14,21 @@ desktop meta-packages `rpd-x-core` and `rpd-graphics` come from
 
 ## Usage
 
-Copy `Claude-lxde-inst.sh` onto the Raspberry Pi 5 (Lite 64-bit, freshly
-flashed, connected to the network) — `scp` it over, or download it directly
-onto the Pi — then:
+On the Raspberry Pi 5 (Lite 64-bit, freshly flashed, connected to the network):
 
 ```bash
-chmod +x Claude-lxde-inst.sh
-./Claude-lxde-inst.sh
+git clone https://github.com/Krys-Py-314/hairy-guacamole-lxde-claude.git
+cd hairy-guacamole-lxde-claude
+chmod +x inst-guacamole-lxde-claude.sh
+./inst-guacamole-lxde-claude.sh
 sudo reboot
 ```
 
+(Or just copy the script over on its own — `scp` it, or download it directly
+onto the Pi — if you don't want the rest of the repo.)
+
 Run it as your normal user (the one with sudo rights) — **not** as root; the
-script refuses to run under `sudo ./Claude-lxde-inst.sh` or as `root` directly.
+script refuses to run under `sudo ./inst-guacamole-lxde-claude.sh` or as `root` directly.
 
 After rebooting, the Pi boots to a text console, auto-logs in on tty1, and
 `startx` launches the LXDE-pi session automatically.
@@ -202,8 +205,9 @@ panel's own power/logout plugin.
 
 ## Origin
 
-This script is `install-rpi-LXDE/install.sh` from the
-`krys314-rpi5-claude` repository, renamed to `Claude-lxde-inst.sh` for
-standalone download. The repository also has an earlier, non-standard build
-at its root (Openbox + picom + tint2 + jgmenu + rofi + dunst rather than the
-real LXDE-pi stack) — this script supersedes that approach entirely.
+This script started as `install-rpi-LXDE/install.sh` in the
+[`krys314-rpi5-claude`](https://github.com/Krys-Py-314/krys314-rpi5-claude)
+repository and now lives here on its own, renamed to
+`inst-guacamole-lxde-claude.sh`. That repository's root also has an earlier,
+non-standard build (Openbox + picom + tint2 + jgmenu + rofi + dunst rather
+than the real LXDE-pi stack) — this script supersedes that approach entirely.
