@@ -5,11 +5,14 @@
 #
 # Builds the actual standard Raspberry Pi LXDE desktop (LXDE-pi profile):
 # lxsession drives the session, Openbox is the window manager (1px square
-# borders, no titlebars), lxpanel-pi is the panel (with its normal Pi
-# plugins - menu, network, volume, battery, power, updater, eject), and
-# pcmanfm draws the desktop background/icons. No compositor, no extra
-# panel, no extra notification daemon, no extra app launcher - those are
-# not part of a standard LXDE install, so this script does not add them.
+# borders, no titlebars), lxpanel is the panel/taskbar (menu, window list,
+# systray with a network applet and volume control, clock - written
+# explicitly using lxpanel's core plugin types, rather than relying on
+# rpd-x-core's own default panel config for the profile, which has been
+# unreliable on Trixie), and pcmanfm draws the desktop background/icons.
+# No compositor, no second panel, no extra notification daemon, no extra
+# app launcher - those are not part of a standard LXDE install, so this
+# script does not add them.
 # Themed dark with Kvantum-Dark for Qt apps and a hand-tuned dark GTK
 # preference for everything else, Numix-Circle icons, Ubuntu Nerd Font at
 # size 11 system-wide, and Oh My Posh for the bash prompt.
@@ -145,10 +148,12 @@ $APT_INSTALL \
 # replaced raspberrypi-ui-mods). It depends on rpd-common, which brings
 # lxsession, pcmanfm, lxterminal, raspi-config, pishutdown, NetworkManager,
 # PipeWire, qt5ct/qt6ct and polkit; rpd-x-core itself adds xserver-xorg,
-# xinit, x11-xserver-utils, Openbox and lxpanel-pi (with its normal plugin
-# set: menu, network, volume, battery, power, updater, eject, bluetooth).
-# This is the actual standard LXDE-pi stack - nothing here is replaced by
-# a substitute panel/menu/compositor/notifier.
+# xinit, x11-xserver-utils, Openbox and lxpanel-pi (its own build of
+# lxpanel). This is the actual standard LXDE-pi stack - nothing here is
+# replaced by a substitute panel/menu/compositor/notifier. The panel's own
+# *config* is written explicitly in section 11b below rather than relying
+# on the profile default rpd-x-core ships, which has been unreliable on
+# Trixie (missing/empty panel after login).
 #
 # rpd-graphics only has Recommends (gstreamer, ffmpeg, mesa-vulkan-drivers,
 # ...), so it MUST be installed with recommends enabled or it installs
@@ -238,7 +243,8 @@ $APT_INSTALL \
     udisks2 \
     xdg-user-dirs \
     xarchiver \
-    suckless-tools
+    suckless-tools \
+    network-manager-gnome
 
 # ---------------------------------------------------------------------------
 # 4. Development tools
@@ -624,12 +630,12 @@ EOF
 # 11. The LXDE-pi session: lxsession config + autostart
 #
 # This is the standard Raspberry Pi LXDE session, not a substitute: it
-# starts lxpanel-pi (the real panel, with its normal network/volume/
-# battery/power/updater/eject plugins) and 'pcmanfm --desktop' (which
-# draws the desktop background and icons) - nothing more. There is no
-# compositor, no second panel, no notification daemon and no separate
-# launcher; that matches a standard LXDE install, and each of those
-# processes not started is memory not used.
+# starts lxpanel (the panel/taskbar, configured explicitly in 11b below),
+# nm-applet (network tray icon) and 'pcmanfm --desktop' (which draws the
+# desktop background and icons) - nothing more. There is no compositor,
+# no second panel, no notification daemon and no separate launcher; that
+# matches a standard LXDE install, and each of those processes not
+# started is memory not used.
 #
 # /etc/xdg/lxsession/<profile>/autostart is blanked because lxsession
 # merges the system-wide autostart file with the per-user one - leaving
@@ -694,6 +700,98 @@ EOF
 cat > "$TARGET_HOME/.config/lxsession/${LXDE_PROFILE}/autostart" <<EOF
 @lxpanel --profile ${LXDE_PROFILE}
 @pcmanfm --desktop --profile ${LXDE_PROFILE}
+@nm-applet
+EOF
+
+# ---------------------------------------------------------------------------
+# 11b. lxpanel panel configuration (the taskbar)
+#
+# lxpanel is started above, but with no panel config to load it draws
+# nothing - and on Trixie, rpd-x-core's own shipped default for the
+# LXDE-pi profile has been unreliable (a known "LXDE-pi autostart not
+# working on Trixie" issue), which is exactly what shows up as "no
+# taskbar" after boot. Writing the panel definition explicitly removes
+# that dependency entirely: this uses only lxpanel's core, universally
+# documented plugin types (menu, taskbar, tray, volumealsa, dclock), so
+# it does not depend on rpd-x-core's own Pi-specific plugin set existing
+# or being named a particular way.
+# ---------------------------------------------------------------------------
+print_status "Writing the lxpanel taskbar configuration..."
+mkdir -p "$TARGET_HOME/.config/lxpanel/${LXDE_PROFILE}/panels"
+cat > "$TARGET_HOME/.config/lxpanel/${LXDE_PROFILE}/panels/panel" <<EOF
+Global {
+    edge=bottom
+    align=center
+    margin=0
+    widthtype=percent
+    width=100
+    heighttype=pixel
+    height=30
+    transparent=0
+    tintcolor=${MENU_BG}
+    alpha=255
+    setdocktype=1
+    setpartialstrut=1
+    autohide=0
+    heightwhenhidden=2
+    animation=0
+    usefontcolor=1
+    fontcolor=${UI_FG}
+    usefontsize=1
+    fontsize=${UI_FONT_SIZE}
+    background=0
+    iconsize=22
+}
+
+Plugin {
+    type = menu
+    Config {
+        image=start-here
+        system {
+        }
+        separator {
+        }
+        item {
+            command=run
+        }
+    }
+}
+
+Plugin {
+    type = taskbar
+    expand=1
+    Config {
+        ShowIconsOnly=0
+        ShowAllDesks=0
+        TaskWidth=180
+        spacing=1
+        GroupedTasks=0
+        UseMouseWheel=1
+        UseUrgencyHint=1
+        FlatButton=0
+        MaxTaskWidth=180
+    }
+}
+
+Plugin {
+    type = tray
+}
+
+Plugin {
+    type = volumealsa
+}
+
+Plugin {
+    type = dclock
+    Config {
+        ClockFmt=%H:%M
+        TooltipFmt=%A %d %B
+        ShowTooltip=1
+        BoldFont=0
+        IconOnly=0
+        CenterText=0
+    }
+}
 EOF
 
 # ---------------------------------------------------------------------------
@@ -1001,15 +1099,35 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 22. Ownership / permissions cleanup
+# 22. XDG user directories (Desktop, Documents, Downloads, Music, Pictures,
+#     Public, Templates, Videos)
+#
+# pcmanfm's desktop (section 12) and file manager both expect these to
+# exist; xdg-user-dirs-update creates them from /etc/xdg/user-dirs.defaults
+# and records their paths in ~/.config/user-dirs.dirs. It needs no X
+# session, but its result was previously swallowed by the final
+# ownership cleanup below - it now runs as its own visible step, with an
+# explicit mkdir fallback for the (locale-less minimal image) case where
+# xdg-user-dirs-update produces nothing at all.
+# ---------------------------------------------------------------------------
+print_status "Creating standard XDG user directories..."
+if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+    xdg-user-dirs-update
+else
+    print_warning "xdg-user-dirs-update not found; creating the standard folders directly."
+fi
+mkdir -p "$TARGET_HOME/Desktop" "$TARGET_HOME/Documents" "$TARGET_HOME/Downloads" \
+         "$TARGET_HOME/Music" "$TARGET_HOME/Pictures" "$TARGET_HOME/Public" \
+         "$TARGET_HOME/Templates" "$TARGET_HOME/Videos"
+
+# ---------------------------------------------------------------------------
+# 23. Ownership / permissions cleanup
 # ---------------------------------------------------------------------------
 print_status "Fixing file ownership..."
 sudo chown -R "${TARGET_USER}:${TARGET_GROUP}" "$TARGET_HOME"
 
-xdg-user-dirs-update 2>/dev/null || true
-
 # ---------------------------------------------------------------------------
-# 23. Done
+# 24. Done
 # ---------------------------------------------------------------------------
 print_status "-----------------------------------------------------------"
 print_status "Installation complete."
@@ -1018,12 +1136,14 @@ print_status "    sudo reboot"
 print_status ""
 print_status "Notes:"
 print_status " * dropbear is now your SSH server on port 22 (openssh-server was disabled if present)."
-print_status " * This is the standard LXDE-pi session: lxsession + Openbox + lxpanel-pi + pcmanfm,"
+print_status " * This is the standard LXDE-pi session: lxsession + Openbox + lxpanel + pcmanfm,"
 print_status "   started from ~/.xinitrc. lightdm was installed by rpd-x-core and disabled again -"
 print_status "   'sudo systemctl enable lightdm && sudo systemctl set-default graphical.target'"
 print_status "   restores it if you want a login greeter."
-print_status " * No compositor, second panel, or notification daemon is installed - lxpanel-pi's"
-print_status "   own network/volume/battery/power/updater/eject plugins are the standard ones."
+print_status " * No compositor, second panel, or notification daemon is installed. The taskbar's"
+print_status "   panel config (menu, window list, network/volume tray, clock) is written explicitly"
+print_status "   in ~/.config/lxpanel/${LXDE_PROFILE}/panels/panel rather than left to rpd-x-core's"
+print_status "   own profile default, which has been unreliable on Trixie."
 print_status " * Kvantum-Dark is applied to Qt apps (qpdfview, lximage-qt, flameshot) via qt5ct/qt6ct."
 print_status "   Everything else is GTK, themed dark via lxsession + a gtk-3.0 settings/css override."
 print_status " * Right-click the desktop, or Super+Space / Alt+F2, opens Openbox's own app menu -"

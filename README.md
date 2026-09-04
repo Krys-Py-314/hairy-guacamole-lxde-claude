@@ -2,11 +2,13 @@
 
 A single script that turns a stock **Raspberry Pi OS Lite 64-bit** install
 (Raspberry Pi 5, 2GB RAM) into a minimal **standard LXDE-pi desktop** on X11
-at 1920x1080. There is no substitute panel, compositor, app launcher or
-notification daemon — the panel is the real `lxpanel-pi`, the desktop
+at 1920x1080. There is no substitute compositor, app launcher or
+notification daemon — the panel/taskbar is `lxpanel`, the desktop
 background/icons come from `pcmanfm --desktop`, and the window manager is
 Openbox, exactly as stock Raspberry Pi OS wires them together
-(`lxsession -s LXDE-pi -e LXDE`).
+(`lxsession -s LXDE-pi -e LXDE`). The panel's own config is written
+explicitly (see [The taskbar](#the-taskbar) below) rather than left to
+rpd-x-core's shipped default, which has been unreliable on Trixie.
 
 Raspberry Pi OS is currently based on **Debian 13 "Trixie"**. The Raspberry Pi
 desktop meta-packages `rpd-x-core` and `rpd-graphics` come from
@@ -39,15 +41,15 @@ After rebooting, the Pi boots to a text console, auto-logs in on tty1, and
 Raspberry Pi OS's own `startlxde-pi` script uses. lxsession reads
 `~/.config/lxsession/LXDE-pi/desktop.conf` (window manager = Openbox, dark GTK
 theme, Numix-Circle icons, `Ubuntu Nerd Font 11`) and its `autostart` file,
-which starts exactly two things:
+which starts exactly three things:
 
 ```
 @lxpanel --profile LXDE-pi
 @pcmanfm --desktop --profile LXDE-pi
+@nm-applet
 ```
 
-That's the real panel (with its normal network / volume / battery / power /
-updater / eject plugins) and the real desktop manager. Nothing else runs —
+The panel, the desktop manager, and a network tray icon. Nothing else runs —
 **no compositor, no second panel, no notification daemon, no separate app
 launcher.** Those aren't part of a standard LXDE install, so this script
 doesn't add them.
@@ -55,6 +57,22 @@ doesn't add them.
 `/etc/xdg/lxsession/LXDE-pi/autostart` is blanked by the installer: lxsession
 merges the system file with the per-user one, and leaving the system default
 in place would start lxpanel and pcmanfm a second time.
+
+### The taskbar
+
+`lxpanel`'s panel config is written explicitly to
+`~/.config/lxpanel/LXDE-pi/panels/panel`, rather than relying on rpd-x-core's
+own shipped default for the LXDE-pi profile — that default has been known to
+produce no visible panel at all on Trixie ("LXDE-pi autostart not working on
+Trixie"). The config uses only lxpanel's core, universally-documented plugin
+types, so it doesn't depend on rpd-x-core's own Pi-specific plugin set
+(`lpplug-*`) existing or being named a particular way:
+
+- **menu** — the Applications button (start-here icon)
+- **taskbar** — the actual window list / task switcher
+- **tray** — hosts `nm-applet`'s network icon
+- **volumealsa** — ALSA volume control
+- **dclock** — a 24h clock
 
 ### The "app menu"
 
@@ -65,10 +83,10 @@ zero-dependency Openbox feature — no jgmenu, no rofi — and its background is
 set to the exact requested `#262626` (R:38 G:38 B:38) via Openbox's own theme
 keys (`menu.items.bg.color` in `~/.themes/PiDark/openbox-3/themerc`).
 
-lxpanel-pi's own Applications menu (the start button on the panel) is also
-present as standard; a small `~/.config/gtk-3.0/gtk.css` override nudges its
-GTK popup background to the same color, since that one is drawn by GTK rather
-than Openbox.
+lxpanel's own Applications menu (the start button on the panel) is also
+present; a small `~/.config/gtk-3.0/gtk.css` override nudges its GTK popup
+background to the same color, since that one is drawn by GTK rather than
+Openbox.
 
 ### Why no display manager
 
@@ -84,10 +102,11 @@ sudo systemctl set-default graphical.target` restores it if you want it.
 |---|---|
 | Pi desktop metas | `rpd-x-core`, `rpd-graphics` (the latter needs Recommends — it is a Recommends-only meta-package) |
 | X11 | `xserver-xorg`, `xinit`, `x11-xserver-utils`, libinput driver, base fonts |
-| LXDE-pi (via rpd-x-core / rpd-common) | `lxsession`, `openbox`, `lxpanel-pi`, `pcmanfm`, `lxterminal` |
+| LXDE-pi (via rpd-x-core / rpd-common) | `lxsession`, `openbox`, `lxpanel-pi` (provides `lxpanel`), `pcmanfm`, `lxterminal` |
 | Terminal / browser | LXTerminal, vimb |
 | Editors | Mousepad, Geany |
 | File manager | PCManFM (+ gvfs/udisks2 for removable media), `lxappearance` |
+| Network | `network-manager-gnome` (`nm-applet`, docks in the panel's tray) |
 | Dev tools | `build-essential` (gcc/g++/make), `raspi-config`, `raspi-utils-core`, `raspi-utils-dt`, GPIO libs, Pi-Apps |
 | SSH | dropbear (replaces openssh-server if present, to save RAM) |
 | Extras | flameshot, lximage-qt, qpdfview, fastfetch, git, curl, `suckless-tools` (slock) |
@@ -202,6 +221,10 @@ panel's own power/logout plugin.
   install paths for the `mate-polkit-bin` agent `rpd-common` installs.
 * The installer is re-runnable: the `.bashrc` edits are guarded by `grep`, and
   Pi-Apps is skipped if `~/pi-apps` already exists.
+* The standard XDG user directories (`Desktop`, `Documents`, `Downloads`,
+  `Music`, `Pictures`, `Public`, `Templates`, `Videos`) are created via
+  `xdg-user-dirs-update`, with a plain `mkdir -p` fallback in case that
+  produces nothing (e.g. no locale data on a minimal image).
 
 ## Origin
 
